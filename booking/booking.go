@@ -36,7 +36,7 @@ func Book(ctx context.Context, p *BookParams) error {
 	eb := errs.B()
 
 	now := time.Now()
-	if p.Start.After(now) {
+	if p.Start.Before(now) {
 		return eb.Code(errs.InvalidArgument).Msg("start time must be in the future").Err()
 	}
 
