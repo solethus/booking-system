@@ -3,7 +3,7 @@ package booking
 
 import (
 	"context"
-	"github.com/jackc/pgx/v5/pgtype"
+	"errors"
 	"time"
 )
 
@@ -27,33 +27,50 @@ func GetBookableSlots(ctx context.Context, from string) (*SlotsResponse, error) 
 		return nil, err
 	}
 
+	availabilityResp, err := GetAvailability(ctx)
+	if err != nil {
+		return nil, err
+	}
+	availability := availabilityResp.Availability
+
 	const numDays = 7
 
 	var slots []BookableSlot
 	for i := 0; i < numDays; i++ {
 		date := fromDate.AddDate(0, 0, i)
-		daySlots, err := bookableSlotsFromDay(date)
+		weekday := int(date.Weekday())
+		if len(availability) <= weekday {
+			break
+		}
+		daySlots, err := bookableSlotsFromDay(date, &availability[weekday])
 		if err != nil {
 			return nil, err
 		}
 		slots = append(slots, daySlots...)
 
 	}
+	// Get bookings for next 7 days.
+	activeBookings, err := listBookingBetween(ctx, fromDate, fromDate.AddDate(0, 0, numDays))
+	if err != nil {
+		return nil, err
+	}
+
+	slots = filterBookableSlots(ctx, slots, time.Now(), activeBookings)
 
 	return &SlotsResponse{Slots: slots}, nil
 }
 
-func bookableSlotsFromDay(date time.Time) ([]BookableSlot, error) {
-	// 09:00
-	availStartTime := pgtype.Time{
-		Valid:        true,
-		Microseconds: int64(9*3600) * 1e6,
+func bookableSlotsFromDay(date time.Time, avail *Availability) ([]BookableSlot, error) {
+	if avail.Start == nil || avail.End == nil {
+		return nil, nil
 	}
-	// 17:00
-	availEndTime := pgtype.Time{
-		Valid:        true,
-		Microseconds: int64(17*3600) * 1e6,
+
+	availStartTime, err1 := strToTime(avail.Start)
+	availEndTime, err2 := strToTime(avail.End)
+	if err := errors.Join(err1, err2); err != nil {
+		return nil, err
 	}
+
 	availStart := date.Add(time.Duration(availStartTime.Microseconds) * time.Microsecond)
 	availEnd := date.Add(time.Duration(availEndTime.Microseconds) * time.Microsecond)
 

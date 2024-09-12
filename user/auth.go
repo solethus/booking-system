@@ -10,7 +10,7 @@ type Data struct {
 }
 
 type AuthParams struct {
-	Authorization string `json:"authorization"`
+	Authorization string `header:"authorization"`
 }
 
 //encore:authhandler

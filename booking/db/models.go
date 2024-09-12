@@ -8,6 +8,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Availability struct {
+	Weekday   int16
+	StartTime pgtype.Time
+	EndTime   pgtype.Time
+}
+
 type Booking struct {
 	ID        int64
 	StartTime pgtype.Timestamp
