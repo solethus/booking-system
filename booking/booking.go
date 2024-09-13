@@ -75,6 +75,33 @@ func Book(ctx context.Context, p *BookParams) error {
 	return nil
 }
 
+type ListBookingResponse struct {
+	Bookings []*Booking `json:"bookings"`
+}
+
+//encore:api auth method=GET path=/booking
+func ListBookings(ctx context.Context) (*ListBookingResponse, error) {
+	rows, err := query.ListBookings(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var bookings []*Booking
+	for _, row := range rows {
+		bookings = append(bookings, &Booking{
+			ID:    row.ID,
+			Start: row.StartTime.Time,
+			End:   row.EndTime.Time,
+		})
+	}
+	return &ListBookingResponse{Bookings: bookings}, nil
+}
+
+//encore:api auth method=DELETE path=/booking/:id
+func DeleteBooking(ctx context.Context, id int64) error {
+	return query.DeleteBooking(ctx, id)
+}
+
 func listBookingBetween(ctx context.Context, start, end time.Time) ([]*Booking, error) {
 	rows, err := query.ListBookingBetween(ctx, db.ListBookingBetweenParams{
 		StartTime: pgtype.Timestamp{Time: start, Valid: true},
