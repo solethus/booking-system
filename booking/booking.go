@@ -34,16 +34,15 @@ type BookParams struct {
 
 //encore:api public method=POST path=/booking
 func Book(ctx context.Context, p *BookParams) error {
-	eb := errs.B()
 
 	now := time.Now()
 	if p.Start.Before(now) {
-		return eb.Code(errs.InvalidArgument).Msg("start time must be in the future").Err()
+		return errs.Wrap(&errs.Error{Code: errs.InvalidArgument}, "start time must be in the future")
 	}
 
 	tx, err := pgxdb.Begin(ctx)
 	if err != nil {
-		return eb.Cause(err).Code(errs.Unavailable).Msg("failed to start transaction").Err()
+		return errs.Wrap(&errs.Error{Code: errs.Unavailable, Message: err.Error()}, "failed to start transaction")
 	}
 	// Committed explicitly on success
 	defer tx.Rollback(context.Background())
@@ -52,12 +51,12 @@ func Book(ctx context.Context, p *BookParams) error {
 	startOfDay := time.Date(p.Start.Year(), p.Start.Month(), p.Start.Day(), 0, 0, 0, 0, p.Start.Location())
 	bookings, err := listBookingBetween(ctx, startOfDay, startOfDay.AddDate(0, 0, 1))
 	if err != nil {
-		return eb.Cause(err).Code(errs.Unavailable).Msg("failed to list bookings").Err()
+		return errs.Wrap(&errs.Error{Code: errs.Unavailable, Message: err.Error()}, "failed to list bookings")
 	}
 	// Is this slot bookable?
 	slot := BookableSlot{Start: p.Start, End: p.Start.Add(DefaultBookingDuration)}
 	if len(filterBookableSlots(ctx, []BookableSlot{slot}, now, bookings)) == 0 {
-		return eb.Code(errs.Unavailable).Msg("slot is unavailable").Err()
+		return errs.Wrap(&errs.Error{Code: errs.Unavailable}, "slot is unavailable")
 	}
 
 	_, err = query.InsertBooking(ctx, db.InsertBookingParams{
@@ -66,11 +65,11 @@ func Book(ctx context.Context, p *BookParams) error {
 		Email:     p.Email,
 	})
 	if err != nil {
-		return eb.Cause(err).Code(errs.Unavailable).Msg("failed to insert booking").Err()
+		return errs.Wrap(&errs.Error{Code: errs.Unavailable, Message: err.Error()}, "failed to insert booking")
 	}
 	err = tx.Commit(ctx)
 	if err != nil {
-		return eb.Cause(err).Code(errs.Unavailable).Msg("failed to commit transaction").Err()
+		return errs.Wrap(&errs.Error{Code: errs.Unavailable, Message: err.Error()}, "failed to commit transaction")
 	}
 	return nil
 }
